@@ -1,0 +1,129 @@
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export interface Database {
+  public: {
+    Tables: {
+      profiles: {
+        Row: {
+          id: string
+          username: string
+          full_name: string | null
+          avatar_url: string | null
+          bio: string | null
+          created_at: string
+          updated_at: string
+          online_status: string | null
+          last_seen: string | null
+          twitter_handle: string | null
+          youtube_handle: string | null
+          tiktok_url: string | null
+          tiktok_handle: string | null
+          kick_url: string | null
+          kick_handle: string | null
+          email_notifications: boolean | null
+          push_notifications: boolean | null
+          tournament_notifications: boolean | null
+          match_notifications: boolean | null
+          team_notifications: boolean | null
+          friend_notifications: boolean | null
+          message_notifications: boolean | null
+          marketing_notifications: boolean | null
+          theme_preference: string | null
+          accent_color: string | null
+          font_size: string | null
+          profile_visibility: string | null
+          show_online_status: boolean | null
+          show_activity: boolean | null
+          allow_friend_requests: boolean | null
+          allow_team_invites: boolean | null
+          allow_direct_messages: string | null
+        }
+        Insert: {
+          id: string
+          username: string
+          full_name?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          updated_at?: string
+          online_status?: string | null
+          last_seen?: string | null
+          twitter_handle?: string | null
+          youtube_handle?: string | null
+          tiktok_url?: string | null
+          tiktok_handle?: string | null
+          kick_url?: string | null
+          kick_handle?: string | null
+          email_notifications?: boolean | null
+          push_notifications?: boolean | null
+          tournament_notifications?: boolean | null
+          match_notifications?: boolean | null
+          team_notifications?: boolean | null
+          friend_notifications?: boolean | null
+          message_notifications?: boolean | null
+          marketing_notifications?: boolean | null
+          theme_preference?: string | null
+          accent_color?: string | null
+          font_size?: string | null
+          profile_visibility?: string | null
+          show_online_status?: boolean | null
+          show_activity?: boolean | null
+          allow_friend_requests?: boolean | null
+          allow_team_invites?: boolean | null
+          allow_direct_messages?: string | null
+        }
+        Update: {
+          id?: string
+          username?: string
+          full_name?: string | null
+          avatar_url?: string | null
+          bio?: string | null
+          created_at?: string
+          updated_at?: string
+          online_status?: string | null
+          last_seen?: string | null
+          twitter_handle?: string | null
+          youtube_handle?: string | null
+          tiktok_url?: string | null
+          tiktok_handle?: string | null
+          kick_url?: string | null
+          kick_handle?: string | null
+          email_notifications?: boolean | null
+          push_notifications?: boolean | null
+          tournament_notifications?: boolean | null
+          match_notifications?: boolean | null
+          team_notifications?: boolean | null
+          friend_notifications?: boolean | null
+          message_notifications?: boolean | null
+          theme_preference?: string | null
+          accent_color?: string | null
+          font_size?: string | null
+          profile_visibility?: string | null
+          show_online_status?: boolean | null
+          show_activity?: boolean | null
+          allow_friend_requests?: boolean | null
+          allow_team_invites?: boolean | null
+          allow_direct_messages?: string | null
+        }
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}

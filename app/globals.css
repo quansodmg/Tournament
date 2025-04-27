@@ -1,0 +1,355 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.5% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom styles for the gaming UI */
+.gaming-sidebar {
+  background-color: #101113;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Rewritten gaming-sidebar-icon class without @apply */
+.gaming-sidebar-icon {
+  position: relative;
+  display: flex;
+  height: 2.5rem;
+  width: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  color: #9ca3af; /* text-gray-400 */
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.gaming-sidebar-icon:hover {
+  background-color: #1e2023;
+  color: #0bb5ff;
+}
+
+.gaming-sidebar-icon.active {
+  background-color: #1e2023;
+  color: #0bb5ff;
+}
+
+.friends-sidebar {
+  background-color: #101113;
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.match-card {
+  background-color: #101113;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.match-vs {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0bb5ff;
+}
+
+.game-chat {
+  background-color: #101113;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Hide scrollbar classes */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Gaming header styles */
+.gaming-header {
+  background-color: #101113;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gaming-header-highlight {
+  background-color: #101113;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gaming button styles */
+.gaming-button {
+  color: white;
+  transition-property: color, background-color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.gaming-button:hover {
+  color: #0bb5ff;
+  background-color: rgba(16, 17, 19, 0.8);
+}
+
+/* Gaming dropdown styles */
+.gaming-dropdown {
+  background-color: #101113;
+  border-color: #222222;
+  color: white;
+}
+
+.gaming-dropdown-item {
+  cursor: pointer;
+}
+
+.gaming-dropdown-item:hover {
+  background-color: rgba(16, 17, 19, 0.8);
+  color: #0bb5ff;
+}
+
+.gaming-dropdown-item:focus {
+  background-color: rgba(16, 17, 19, 0.8);
+}
+
+/* Add this to the end of the file */
+.games-grid-bg {
+  background-color: #101113;
+}
+
+/* Modern card styles */
+.modern-card {
+  background-color: #101113;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #222222;
+  overflow: hidden;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.modern-card:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.modern-card-hover {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.modern-card-hover:hover {
+  border-color: rgba(11, 181, 255, 0.5);
+  transform: scale(1.02);
+}
+
+/* Modern button styles */
+.modern-button {
+  background-color: #0bb5ff;
+  color: white;
+  border-radius: 0.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-weight: 500;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.modern-button:hover {
+  background-color: rgba(11, 181, 255, 0.8);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.modern-button-outline {
+  background-color: transparent;
+  border: 1px solid #0bb5ff;
+  color: #0bb5ff;
+  border-radius: 0.5rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  font-weight: 500;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.modern-button-outline:hover {
+  background-color: rgba(11, 181, 255, 0.1);
+}
+
+/* Modern section styles */
+.modern-section {
+  background-color: #101113;
+  border-radius: 1rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  border: 1px solid #222222;
+  padding: 1.5rem;
+}
+
+/* Modern text styles */
+.text-accent {
+  color: #0bb5ff;
+}
+
+.text-gradient {
+  background-image: linear-gradient(to right, #67b7ff, #0bb5ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Modern layout styles */
+.modern-container {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .modern-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .modern-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+/* Modern nav styles */
+.modern-nav-item {
+  position: relative;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  color: white;
+  transition-property: color;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+.modern-nav-item:hover {
+  color: #0bb5ff;
+}
+
+.modern-nav-item.active {
+  color: #0bb5ff;
+}
+
+.modern-nav-item::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 0.125rem;
+  background-color: #0bb5ff;
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.modern-nav-item:hover::after {
+  width: 100%;
+}
+
+.modern-nav-item.active::after {
+  width: 100%;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}

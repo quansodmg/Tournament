@@ -1,10 +1,55 @@
 import { createServerClient } from "@/lib/supabase/server"
-import { notFound } from "next/navigation"
-import MatchDetails from "@/components/matches/match-details"
-import EloChangeDisplay from "@/components/matches/elo-change-display"
+import { notFound, redirect } from "next/navigation"
+import type { Metadata } from "next"
+import MatchDetailsView from "@/components/matches/match-details-view"
 
-export default async function MatchPage({ params }: { params: { id: string } }) {
-  const supabase = await createServerClient()
+interface MatchPageProps {
+  params: {
+    id: string
+  }
+}
+
+export async function generateMetadata({ params }: MatchPageProps): Promise<Metadata> {
+  const supabase = createServerClient()
+
+  try {
+    const { data: match } = await supabase
+      .from("matches")
+      .select(`
+        *,
+        game:game_id(name)
+      `)
+      .eq("id", params.id)
+      .single()
+
+    if (!match) {
+      return {
+        title: "Match Not Found | Esports Platform",
+      }
+    }
+
+    return {
+      title: `${match.game?.name || "Match"} | Esports Platform`,
+      description: `View details and results for this ${match.game?.name || ""} match.`,
+    }
+  } catch (error) {
+    return {
+      title: "Match Details | Esports Platform",
+    }
+  }
+}
+
+export default async function MatchPage({ params }: MatchPageProps) {
+  const supabase = createServerClient()
+
+  // Get the current user
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  if (!session) {
+    redirect(`/auth?redirect=/matches/${params.id}`)
+  }
 
   // Get match details
   const { data: match, error } = await supabase
@@ -12,24 +57,13 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
     .select(`
       *,
       game:game_id(*),
-      match_participants(
-        id,
-        team_id,
-        profile_id,
-        result,
-        score,
-        team:team_id(
-          id,
-          name,
-          logo_url
-        ),
-        profile:profile_id(
-          id,
-          username,
-          avatar_url
-        )
+      participants:match_participants(
+        *,
+        team:team_id(*),
+        profile:profile_id(*)
       ),
-      match_results(*)
+      match_results(*),
+      match_settings(*)
     `)
     .eq("id", params.id)
     .single()
@@ -38,49 +72,41 @@ export default async function MatchPage({ params }: { params: { id: string } }) 
     notFound()
   }
 
-  // Get current user
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  // Check if user is a participant in this match
+  const userTeams = await supabase.from("team_members").select("team_id").eq("profile_id", session.user.id)
 
-  const userId = session?.user?.id || null
+  const userTeamIds = userTeams.data?.map((t) => t.team_id) || []
+
+  const isParticipant = match.participants.some((p) => userTeamIds.includes(p.team_id))
+
+  // If match is private and user is not a participant, redirect
+  if (match.is_private && !isParticipant && match.scheduled_by !== session.user.id) {
+    redirect("/matches?error=private")
+  }
 
   // Get user's profile
-  let userProfile = null
-  if (userId) {
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single()
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", session.user.id).single()
 
-    userProfile = profile
-  }
-
-  // Get user's teams
-  let userTeams = []
-  if (userId) {
-    const { data: teams } = await supabase
-      .from("team_members")
-      .select("team_id, team:team_id(*)")
-      .eq("profile_id", userId)
-
-    userTeams = teams?.map((t) => t.team) || []
-  }
-
-  // Check if match is completed
-  const isCompleted = match.status === "completed"
+  // Get match chat messages
+  const { data: chatMessages } = await supabase
+    .from("match_chats")
+    .select(`
+      *,
+      profile:profile_id(*)
+    `)
+    .eq("match_id", params.id)
+    .order("created_at", { ascending: true })
 
   return (
-    <div className="container max-w-screen-xl mx-auto py-8 px-4">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
-          <MatchDetails match={match} userId={userId} userProfile={userProfile} userTeams={userTeams} />
-        </div>
-        <div>
-          {/* Show ELO changes if match is completed */}
-          {isCompleted && <EloChangeDisplay matchId={params.id} />}
-
-          {/* Other match sidebar components */}
-          {/* ... */}
-        </div>
-      </div>
+    <div className="container max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <MatchDetailsView
+        match={match}
+        userId={session.user.id}
+        userProfile={profile}
+        userTeamIds={userTeamIds}
+        isParticipant={isParticipant}
+        chatMessages={chatMessages || []}
+      />
     </div>
   )
 }

@@ -4,57 +4,33 @@ import type React from "react"
 
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, AlertCircle, Send } from "lucide-react"
+import { Loader2, Send } from "lucide-react"
 import { format } from "date-fns"
 
 interface MatchChatProps {
   matchId: string
   userId: string
   userProfile: any
+  initialMessages: any[]
 }
 
-export default function MatchChat({ matchId, userId, userProfile }: MatchChatProps) {
+export default function MatchChat({ matchId, userId, userProfile, initialMessages }: MatchChatProps) {
   const supabase = createClient()
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [messages, setMessages] = useState<any[]>([])
+  const [messages, setMessages] = useState<any[]>(initialMessages || [])
   const [newMessage, setNewMessage] = useState("")
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    async function fetchMessages() {
-      try {
-        setLoading(true)
+    // Scroll to bottom when messages change
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
-        // Fetch messages
-        const { data, error } = await supabase
-          .from("match_chats")
-          .select(`
-            *,
-            profile:profile_id(id, username, avatar_url)
-          `)
-          .eq("match_id", matchId)
-          .order("created_at")
-
-        if (error) throw error
-
-        setMessages(data || [])
-      } catch (err: any) {
-        console.error("Error fetching messages:", err)
-        setError(err.message || "Failed to load chat messages")
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchMessages()
-
+  useEffect(() => {
     // Set up real-time subscription
     const channel = supabase
       .channel(`match_chat:${matchId}`)
@@ -66,21 +42,20 @@ export default function MatchChat({ matchId, userId, userProfile }: MatchChatPro
           table: "match_chats",
           filter: `match_id=eq.${matchId}`,
         },
-        (payload) => {
+        async (payload) => {
           // Fetch the complete message with profile info
-          supabase
+          const { data } = await supabase
             .from("match_chats")
             .select(`
               *,
-              profile:profile_id(id, username, avatar_url)
+              profile:profile_id(*)
             `)
             .eq("id", payload.new.id)
             .single()
-            .then(({ data }) => {
-              if (data) {
-                setMessages((prev) => [...prev, data])
-              }
-            })
+
+          if (data) {
+            setMessages((prev) => [...prev, data])
+          }
         },
       )
       .subscribe()
@@ -89,11 +64,6 @@ export default function MatchChat({ matchId, userId, userProfile }: MatchChatPro
       supabase.removeChannel(channel)
     }
   }, [matchId, supabase])
-
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -113,42 +83,17 @@ export default function MatchChat({ matchId, userId, userProfile }: MatchChatPro
       if (error) throw error
 
       setNewMessage("")
-    } catch (err: any) {
+    } catch (err) {
       console.error("Error sending message:", err)
-      setError(err.message || "Failed to send message")
     } finally {
       setSending(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="pt-6 flex justify-center items-center min-h-[300px]">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    )
   }
 
   return (
     <Card className="flex flex-col h-[500px]">
       <CardHeader className="pb-3">
         <CardTitle>Match Chat</CardTitle>
-        <CardDescription>Communicate with other participants</CardDescription>
       </CardHeader>
       <CardContent className="flex-grow overflow-y-auto pb-0">
         <div className="space-y-4">
@@ -166,7 +111,9 @@ export default function MatchChat({ matchId, userId, userProfile }: MatchChatPro
                   </Avatar>
                 )}
                 <div
-                  className={`${message.is_system ? "bg-muted text-center py-1 px-3 rounded-md text-sm w-full" : "flex-1"}`}
+                  className={`${
+                    message.is_system ? "bg-muted text-center py-1 px-3 rounded-md text-sm w-full" : "flex-1"
+                  }`}
                 >
                   {!message.is_system && (
                     <div className="flex items-center">

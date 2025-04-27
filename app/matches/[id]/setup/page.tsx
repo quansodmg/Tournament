@@ -1,14 +1,22 @@
 import { createServerClient } from "@/lib/supabase/server"
-import { redirect } from "next/navigation"
-import MatchSetupClient from "@/components/matches/match-setup-client"
+import { notFound, redirect } from "next/navigation"
+import MatchSetupForm from "@/components/matches/match-setup-form"
+import type { Metadata } from "next"
 
-interface MatchSetupPageProps {
+interface SetupMatchPageProps {
   params: {
     id: string
   }
 }
 
-export default async function MatchSetupPage({ params }: MatchSetupPageProps) {
+export async function generateMetadata({ params }: SetupMatchPageProps): Promise<Metadata> {
+  return {
+    title: "Setup Match | Esports Platform",
+    description: "Configure your match settings before it begins",
+  }
+}
+
+export default async function SetupMatchPage({ params }: SetupMatchPageProps) {
   const supabase = createServerClient()
 
   // Get the current user
@@ -17,46 +25,53 @@ export default async function MatchSetupPage({ params }: MatchSetupPageProps) {
   } = await supabase.auth.getSession()
 
   if (!session) {
-    redirect("/auth?redirect=/matches/" + params.id + "/setup")
+    redirect(`/auth?redirect=/matches/${params.id}/setup`)
   }
 
-  // Get match details to check if user is a participant
+  // Get match details
   const { data: match, error } = await supabase
     .from("matches")
     .select(`
       *,
+      game:game_id(*),
       participants:match_participants(
-        team_id,
-        team:team_id(
-          members:team_members(profile_id)
-        )
-      )
+        *,
+        team:team_id(*)
+      ),
+      match_settings(*)
     `)
     .eq("id", params.id)
     .single()
 
   if (error || !match) {
-    redirect("/matches")
+    notFound()
   }
 
-  // Check if user is a participant in this match
-  const isParticipant = match.participants.some((p: any) =>
-    p.team?.members?.some((m: any) => m.profile_id === session.user.id),
-  )
-
-  if (!isParticipant) {
-    redirect("/matches")
+  // Check if match has 2 participants
+  if (match.participants.length !== 2) {
+    redirect(`/matches/${params.id}?error=not-ready`)
   }
 
-  // Check if match is in the correct status
-  if (match.status !== "pending" && match.status !== "setup") {
-    redirect(`/matches/${params.id}`)
+  // Check if match is still in scheduled status
+  if (match.status !== "scheduled") {
+    redirect(`/matches/${params.id}?error=already-started`)
   }
+
+  // Check if user is a participant
+  const userTeams = await supabase.from("team_members").select("team_id").eq("profile_id", session.user.id)
+  const userTeamIds = userTeams.data?.map((t) => t.team_id) || []
+  const isParticipant = match.participants.some((p: any) => userTeamIds.includes(p.team_id))
+
+  if (!isParticipant && match.scheduled_by !== session.user.id) {
+    redirect(`/matches/${params.id}?error=not-participant`)
+  }
+
+  // Get user's team in this match
+  const userTeam = match.participants.find((p: any) => userTeamIds.includes(p.team_id))?.team
 
   return (
-    <div className="container max-w-4xl py-8">
-      <h1 className="text-3xl font-bold mb-6">Match Setup</h1>
-      <MatchSetupClient matchId={params.id} userId={session.user.id} />
+    <div className="container max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <MatchSetupForm match={match} userId={session.user.id} userTeam={userTeam} />
     </div>
   )
 }

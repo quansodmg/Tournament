@@ -41,33 +41,63 @@ export default function AvailableMatches({ userId, limit = 5, showViewAll = true
         const { data: userMatches, error: userMatchesError } = await supabase
           .from("match_participants")
           .select("match_id")
-          .in("team_id", userTeamIds)
+          .in("team_id", userTeamIds.length > 0 ? userTeamIds : ["00000000-0000-0000-0000-000000000000"])
 
         if (userMatchesError) throw userMatchesError
         const userMatchIds = userMatches.map((m) => m.match_id)
 
         // Get available matches (scheduled, not full, not user's)
-        const { data, error } = await supabase
+        // Fix: Don't use the foreign key relationship, fetch games separately
+        const { data: matchesData, error } = await supabase
           .from("matches")
           .select(`
             *,
-            game:game_id(*),
-            participants:match_participants(*)
+            match_participants(*)
           `)
           .eq("status", "scheduled")
           .gt("start_time", new Date().toISOString())
-          .not("id", "in", `(${userMatchIds.join(",")})`)
+          .not(
+            "id",
+            "in",
+            userMatchIds.length > 0 ? `(${userMatchIds.join(",")})` : "(00000000-0000-0000-0000-000000000000)",
+          )
           .order("start_time")
           .limit(limit)
 
         if (error) throw error
 
         // Filter matches that already have 2 participants
-        const availableMatches = data.filter((match) => {
-          return (match.participants?.length || 0) < 2
+        const availableMatches = matchesData.filter((match) => {
+          return (match.match_participants?.length || 0) < 2
         })
 
-        setMatches(availableMatches)
+        // Fetch game details separately
+        const gameIds = availableMatches.map((match) => match.game_id).filter((id) => id !== null) as string[]
+
+        let gamesData: Record<string, any> = {}
+
+        if (gameIds.length > 0) {
+          const { data: games, error: gamesError } = await supabase.from("games").select("*").in("id", gameIds)
+
+          if (gamesError) throw gamesError
+
+          // Create a lookup object for games
+          gamesData = (games || []).reduce(
+            (acc, game) => {
+              acc[game.id] = game
+              return acc
+            },
+            {} as Record<string, any>,
+          )
+        }
+
+        // Attach game data to matches
+        const matchesWithGames = availableMatches.map((match) => ({
+          ...match,
+          game: match.game_id ? gamesData[match.game_id] : null,
+        }))
+
+        setMatches(matchesWithGames)
       } catch (err: any) {
         console.error("Error fetching available matches:", err)
         setError(err.message || "Failed to load available matches")
@@ -137,7 +167,7 @@ export default function AvailableMatches({ userId, limit = 5, showViewAll = true
                   <div className="flex items-center">
                     <p className="font-medium">{match.game?.name || "Unknown Game"}</p>
                     <Badge className="ml-2" variant="outline">
-                      {match.match_type.charAt(0).toUpperCase() + match.match_type.slice(1)}
+                      {match.match_type?.charAt(0).toUpperCase() + match.match_type?.slice(1) || "Match"}
                     </Badge>
                   </div>
                   <div className="flex items-center text-sm text-muted-foreground space-x-2">

@@ -1,6 +1,17 @@
 // This file is for server components only
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/lib/database.types"
+import { cookies } from "next/headers"
+
+export function createServerClient() {
+  try {
+    const cookieStore = cookies()
+    return createServerComponentClient<Database>({ cookies: () => cookieStore })
+  } catch (error) {
+    console.error("Error creating server client:", error)
+    throw new Error("Failed to initialize database connection")
+  }
+}
 
 /**
  * Creates a Supabase client for server components
@@ -9,7 +20,7 @@ import type { Database } from "@/lib/database.types"
 export const createServerSupabase = async () => {
   try {
     // Dynamically import cookies to prevent bundling with client code
-    const { cookies } = await import("next/headers")
+    // const { cookies } = await import("next/headers")
 
     // Pass the cookies function directly, not the result of calling it
     const client = createServerComponentClient<Database>({
@@ -42,5 +53,5 @@ export const createServerSupabase = async () => {
 
 // Export with multiple names for backward compatibility
 export { createServerSupabase as getSupabaseServer }
-export { createServerSupabase as createServerClient }
+// export { createServerSupabase as createServerClient }
 export { createServerSupabase as createClient }

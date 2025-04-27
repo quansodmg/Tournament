@@ -42,7 +42,7 @@ export async function POST(request: Request) {
       .select("id")
       .eq("status", "completed")
       .is("elo_processed", null)
-      .order("completed_at", { ascending: true })
+      .order("end_time", { ascending: true }) // Use end_time instead of completed_at
       .limit(50)
 
     if (error) {
@@ -112,3 +112,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
+
+// Also support GET requests
+export { POST as GET }

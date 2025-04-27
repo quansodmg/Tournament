@@ -2,6 +2,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import { notFound, redirect } from "next/navigation"
 import type { Metadata } from "next"
 import MatchDetailsView from "@/components/matches/match-details-view"
+import ClientRedirect from "@/components/ui/client-redirect"
 
 interface MatchPageProps {
   params: {
@@ -63,12 +64,12 @@ export async function generateMetadata({ params }: MatchPageProps): Promise<Meta
 }
 
 export default async function MatchPage({ params }: MatchPageProps) {
-  // Check if this is a reserved path and redirect
+  // Check if this is a reserved path and use the client redirect component
   if (RESERVED_PATHS.includes(params.id)) {
     if (params.id === "schedule") {
-      redirect("/matches/create")
+      return <ClientRedirect to="/matches/create" message="Redirecting to match creation..." />
     }
-    redirect(`/matches/${params.id}`)
+    return <ClientRedirect to={`/matches/${params.id}`} />
   }
 
   const supabase = createServerClient()

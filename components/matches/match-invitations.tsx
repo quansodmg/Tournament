@@ -1,47 +1,28 @@
 "use client"
 
-import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Check, X, Clock, AlertCircle } from "lucide-react"
-import { format, formatDistanceToNow } from "date-fns"
-import { useRouter } from "next/navigation"
+import { Check, X } from "lucide-react"
+import { useState } from "react"
+import { createClient } from "@/lib/supabase/client"
+import { format } from "date-fns"
+import { toast } from "@/components/ui/use-toast"
 
 interface MatchInvitationsProps {
   invitations: any[]
-  userId: string
+  userId?: string
 }
 
 export default function MatchInvitations({ invitations, userId }: MatchInvitationsProps) {
   const supabase = createClient()
-  const router = useRouter()
-  const [loading, setLoading] = useState<Record<string, boolean>>({})
-  const [error, setError] = useState<string | null>(null)
-
-  if (invitations.length === 0) return null
+  const [processingIds, setProcessingIds] = useState<string[]>([])
+  const [localInvitations, setLocalInvitations] = useState(invitations)
 
   const handleAccept = async (invitation: any) => {
+    if (!userId) return
+
     try {
-      setLoading((prev) => ({ ...prev, [invitation.id]: true }))
-      setError(null)
-
-      // Check if user is team captain or owner
-      const { data: teamMember, error: memberError } = await supabase
-        .from("team_members")
-        .select("role")
-        .eq("team_id", invitation.team_id)
-        .eq("profile_id", userId)
-        .single()
-
-      if (memberError) throw memberError
-
-      if (!["owner", "captain"].includes(teamMember.role)) {
-        throw new Error("Only team captains can accept match invitations")
-      }
+      setProcessingIds((prev) => [...prev, invitation.id])
 
       // Update invitation status
       const { error: updateError } = await supabase
@@ -51,162 +32,105 @@ export default function MatchInvitations({ invitations, userId }: MatchInvitatio
 
       if (updateError) throw updateError
 
-      // Add team as match participant
+      // Add team to match participants
       const { error: participantError } = await supabase.from("match_participants").insert({
         match_id: invitation.match_id,
         team_id: invitation.team_id,
+        joined_at: new Date().toISOString(),
       })
 
       if (participantError) throw participantError
 
-      // Add system message to match chat
-      await supabase.from("match_chats").insert({
-        match_id: invitation.match_id,
-        profile_id: "00000000-0000-0000-0000-000000000000", // System user ID
-        message: `${invitation.team.name} has accepted the match invitation.`,
-        is_system: true,
-      })
+      // Remove from local state
+      setLocalInvitations((prev) => prev.filter((inv) => inv.id !== invitation.id))
 
-      // Redirect to match setup page
-      router.push(`/matches/${invitation.match_id}/setup`)
-    } catch (err: any) {
-      console.error("Error accepting invitation:", err)
-      setError(err.message || "Failed to accept invitation")
+      toast({
+        title: "Invitation accepted",
+        description: `Your team has joined the match scheduled for ${format(new Date(invitation.match.start_time), "MMM d, h:mm a")}`,
+      })
+    } catch (error) {
+      console.error("Error accepting invitation:", error)
+      toast({
+        title: "Error",
+        description: "Failed to accept the invitation. Please try again.",
+        variant: "destructive",
+      })
     } finally {
-      setLoading((prev) => ({ ...prev, [invitation.id]: false }))
+      setProcessingIds((prev) => prev.filter((id) => id !== invitation.id))
     }
   }
 
   const handleDecline = async (invitation: any) => {
     try {
-      setLoading((prev) => ({ ...prev, [invitation.id]: true }))
-      setError(null)
-
-      // Check if user is team captain or owner
-      const { data: teamMember, error: memberError } = await supabase
-        .from("team_members")
-        .select("role")
-        .eq("team_id", invitation.team_id)
-        .eq("profile_id", userId)
-        .single()
-
-      if (memberError) throw memberError
-
-      if (!["owner", "captain"].includes(teamMember.role)) {
-        throw new Error("Only team captains can decline match invitations")
-      }
+      setProcessingIds((prev) => [...prev, invitation.id])
 
       // Update invitation status
-      const { error: updateError } = await supabase
-        .from("match_invitations")
-        .update({ status: "declined" })
-        .eq("id", invitation.id)
+      const { error } = await supabase.from("match_invitations").update({ status: "declined" }).eq("id", invitation.id)
 
-      if (updateError) throw updateError
+      if (error) throw error
 
-      // Add system message to match chat
-      await supabase.from("match_chats").insert({
-        match_id: invitation.match_id,
-        profile_id: "00000000-0000-0000-0000-000000000000", // System user ID
-        message: `${invitation.team.name} has declined the match invitation.`,
-        is_system: true,
+      // Remove from local state
+      setLocalInvitations((prev) => prev.filter((inv) => inv.id !== invitation.id))
+
+      toast({
+        title: "Invitation declined",
+        description: "The match invitation has been declined.",
       })
-
-      // Refresh the page
-      router.refresh()
-    } catch (err: any) {
-      console.error("Error declining invitation:", err)
-      setError(err.message || "Failed to decline invitation")
+    } catch (error) {
+      console.error("Error declining invitation:", error)
+      toast({
+        title: "Error",
+        description: "Failed to decline the invitation. Please try again.",
+        variant: "destructive",
+      })
     } finally {
-      setLoading((prev) => ({ ...prev, [invitation.id]: false }))
+      setProcessingIds((prev) => prev.filter((id) => id !== invitation.id))
     }
   }
 
+  if (localInvitations.length === 0) {
+    return null
+  }
+
   return (
-    <Card className="border-amber-500/50 bg-amber-50/10">
+    <Card>
       <CardHeader>
-        <CardTitle>Pending Match Invitations</CardTitle>
-        <CardDescription>
-          You have {invitations.length} pending match invitation{invitations.length !== 1 ? "s" : ""}
-        </CardDescription>
+        <CardTitle>Match Invitations</CardTitle>
+        <CardDescription>You have pending invitations to join matches</CardDescription>
       </CardHeader>
       <CardContent>
-        {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-
         <div className="space-y-4">
-          {invitations.map((invitation) => {
-            const isExpired = invitation.acceptance_deadline && new Date(invitation.acceptance_deadline) < new Date()
-            const timeRemaining =
-              invitation.acceptance_deadline && !isExpired
-                ? formatDistanceToNow(new Date(invitation.acceptance_deadline), { addSuffix: false })
-                : null
-
-            return (
-              <div
-                key={invitation.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-secondary/50 rounded-lg"
-              >
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={invitation.team?.logo_url || ""} alt={invitation.team?.name || "Team"} />
-                    <AvatarFallback>{invitation.team?.name?.[0] || "T"}</AvatarFallback>
-                  </Avatar>
-
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold">{invitation.team?.name}</h4>
-                      <Badge variant="outline">Invited</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      Match on {format(new Date(invitation.match.start_time), "PPP 'at' p")}
-                    </p>
-                    {timeRemaining && (
-                      <div className="flex items-center mt-1 text-xs">
-                        <Clock className={`h-3 w-3 mr-1 ${isExpired ? "text-red-500" : "text-amber-500"}`} />
-                        <span className={isExpired ? "text-red-500" : "text-amber-500"}>
-                          {isExpired ? "Expired" : `${timeRemaining} remaining`}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 self-end sm:self-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDecline(invitation)}
-                    disabled={loading[invitation.id] || isExpired}
-                  >
-                    {loading[invitation.id] ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <X className="h-4 w-4 mr-1" />
-                    )}
-                    Decline
-                  </Button>
-
-                  <Button
-                    size="sm"
-                    onClick={() => handleAccept(invitation)}
-                    disabled={loading[invitation.id] || isExpired}
-                  >
-                    {loading[invitation.id] ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="h-4 w-4 mr-1" />
-                    )}
-                    Accept
-                  </Button>
-                </div>
+          {localInvitations.map((invitation) => (
+            <div
+              key={invitation.id}
+              className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
+            >
+              <div>
+                <p className="font-medium">
+                  {invitation.match?.game?.name || "Match"} -{" "}
+                  {format(new Date(invitation.match.start_time), "MMM d, h:mm a")}
+                </p>
+                <p className="text-sm text-muted-foreground">Team: {invitation.team?.name || "Unknown Team"}</p>
               </div>
-            )
-          })}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => handleAccept(invitation)}
+                  disabled={processingIds.includes(invitation.id)}
+                >
+                  <Check className="h-4 w-4 mr-1" /> Accept
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleDecline(invitation)}
+                  disabled={processingIds.includes(invitation.id)}
+                >
+                  <X className="h-4 w-4 mr-1" /> Decline
+                </Button>
+              </div>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>

@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PlusCircle, Search, Calendar, Users, GamepadIcon } from "lucide-react"
+import { PlusCircle, Search, Calendar, Users, GamepadIcon, LogIn } from "lucide-react"
 import Link from "next/link"
 import MatchCard from "./match-card"
 import UpcomingMatchesList from "./upcoming-matches-list"
@@ -16,13 +16,20 @@ import MatchInvitations from "./match-invitations"
 import { useRouter } from "next/navigation"
 
 interface MatchesOverviewProps {
-  userId: string
-  userProfile: any
+  userId?: string
+  userProfile?: any
   userTeams: any[]
   games: any[]
+  isAuthenticated: boolean
 }
 
-export default function MatchesOverview({ userId, userProfile, userTeams, games }: MatchesOverviewProps) {
+export default function MatchesOverview({
+  userId,
+  userProfile,
+  userTeams,
+  games,
+  isAuthenticated,
+}: MatchesOverviewProps) {
   const supabase = createClient()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -43,233 +50,116 @@ export default function MatchesOverview({ userId, userProfile, userTeams, games 
       try {
         setLoading(true)
 
-        // Get user's team IDs
-        const userTeamIds = userTeams.map((team) => team.id)
-
-        // Create a games lookup map for easier access
-        const gamesMap = new Map(games.map((game) => [game.id, game]))
-
-        // Fetch matches where user is a participant - modified to avoid relationship issues
-        const { data: myParticipations, error: participationsError } = await supabase
-          .from("match_participants")
-          .select(`
-            match_id,
-            team_id,
-            profile_id
-          `)
-          .in("team_id", userTeamIds.length > 0 ? userTeamIds : ["00000000-0000-0000-0000-000000000000"])
-
-        if (participationsError) throw participationsError
-
-        if (myParticipations && myParticipations.length > 0) {
-          // Get unique match IDs
-          const matchIds = [...new Set(myParticipations.map((p) => p.match_id))]
-
-          // Fetch the actual matches
-          const { data: matchesData, error: matchesError } = await supabase
-            .from("matches")
-            .select(`
-              *,
-              match_participants(
-                team_id,
-                profile_id
-              )
-            `)
-            .in("id", matchIds)
-
-          if (matchesError) throw matchesError
-
-          // Fetch teams for these matches
-          const teamIds = [
-            ...new Set(
-              matchesData?.flatMap((match) => match.match_participants.map((p) => p.team_id)).filter(Boolean) || [],
-            ),
-          ]
-
-          const { data: teamsData, error: teamsError } = await supabase
-            .from("teams")
-            .select("*")
-            .in("id", teamIds.length > 0 ? teamIds : ["00000000-0000-0000-0000-000000000000"])
-
-          if (teamsError) throw teamsError
-
-          // Create a teams lookup map
-          const teamsMap = new Map(teamsData?.map((team) => [team.id, team]) || [])
-
-          // Process matches with game and team data
-          const processedMatches =
-            matchesData
-              ?.map((match) => {
-                // Add game data from our games prop
-                const game = match.game_id ? gamesMap.get(match.game_id) : null
-
-                // Add team data to participants
-                const participants = match.match_participants.map((p) => ({
-                  ...p,
-                  team: p.team_id ? teamsMap.get(p.team_id) : null,
-                }))
-
-                return {
-                  ...match,
-                  game,
-                  participants,
-                }
-              })
-              .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()) || []
-
-          setMyMatches(processedMatches)
-        } else {
-          setMyMatches([])
+        // If not authenticated, just fetch public matches
+        if (!isAuthenticated || !userId) {
+          await fetchPublicMatches()
+          setLoading(false)
+          return
         }
 
-        // Get upcoming matches (next 7 days) - modified to avoid relationship issues
-        const nextWeek = new Date()
-        nextWeek.setDate(nextWeek.getDate() + 7)
+        // Get user's team IDs
+        const userTeamIds = userTeams?.map((team) => team?.id).filter(Boolean) || []
 
-        const { data: upcomingMatchesData, error: upcomingMatchesError } = await supabase
-          .from("matches")
-          .select(`*`)
-          .eq("status", "scheduled")
-          .gte("start_time", new Date().toISOString())
-          .lte("start_time", nextWeek.toISOString())
-          .order("start_time", { ascending: true })
-          .limit(10)
+        // Create a games lookup map for easier access
+        const gamesMap = new Map(games?.map((game) => [game.id, game]) || [])
 
-        if (upcomingMatchesError) throw upcomingMatchesError
-
-        // Fetch participants for upcoming matches
-        if (upcomingMatchesData && upcomingMatchesData.length > 0) {
-          const upcomingMatchIds = upcomingMatchesData.map((m) => m.id)
-
-          const { data: upcomingParticipants, error: upcomingParticipantsError } = await supabase
+        // Fetch matches where user is a participant - modified to avoid relationship issues
+        if (userTeamIds.length > 0) {
+          const { data: myParticipations, error: participationsError } = await supabase
             .from("match_participants")
             .select(`
               match_id,
               team_id,
               profile_id
             `)
-            .in("match_id", upcomingMatchIds)
+            .in("team_id", userTeamIds)
 
-          if (upcomingParticipantsError) throw upcomingParticipantsError
+          if (participationsError) {
+            console.error("Error fetching participations:", participationsError)
+          } else if (myParticipations && myParticipations.length > 0) {
+            // Get unique match IDs
+            const matchIds = [...new Set(myParticipations.map((p) => p.match_id))]
 
-          // Group participants by match
-          const participantsByMatch =
-            upcomingParticipants?.reduce(
-              (acc, p) => {
-                if (!acc[p.match_id]) acc[p.match_id] = []
-                acc[p.match_id].push(p)
-                return acc
-              },
-              {} as Record<string, any[]>,
-            ) || {}
+            // Fetch the actual matches
+            const { data: matchesData, error: matchesError } = await supabase
+              .from("matches")
+              .select(`
+                *,
+                match_participants(
+                  team_id,
+                  profile_id
+                )
+              `)
+              .in("id", matchIds)
 
-          // Process upcoming matches with game data
-          const processedUpcomingMatches = upcomingMatchesData.map((match) => {
-            const game = match.game_id ? gamesMap.get(match.game_id) : null
-            const participants = participantsByMatch[match.id] || []
+            if (matchesError) {
+              console.error("Error fetching matches:", matchesError)
+            } else if (matchesData) {
+              // Fetch teams for these matches
+              const teamIds = [
+                ...new Set(
+                  matchesData.flatMap((match) => match.match_participants.map((p) => p.team_id)).filter(Boolean) || [],
+                ),
+              ]
 
-            return {
-              ...match,
-              game,
-              participants,
+              if (teamIds.length > 0) {
+                const { data: teamsData, error: teamsError } = await supabase
+                  .from("teams")
+                  .select("*")
+                  .in("id", teamIds)
+
+                if (teamsError) {
+                  console.error("Error fetching teams:", teamsError)
+                } else {
+                  // Create a teams lookup map
+                  const teamsMap = new Map(teamsData?.map((team) => [team.id, team]) || [])
+
+                  // Process matches with game and team data
+                  const processedMatches =
+                    matchesData
+                      ?.map((match) => {
+                        // Add game data from our games prop
+                        const game = match.game_id ? gamesMap.get(match.game_id) : null
+
+                        // Add team data to participants
+                        const participants = match.match_participants.map((p) => ({
+                          ...p,
+                          team: p.team_id ? teamsMap.get(p.team_id) : null,
+                        }))
+
+                        return {
+                          ...match,
+                          game,
+                          participants,
+                        }
+                      })
+                      .sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime()) || []
+
+                  setMyMatches(processedMatches)
+                }
+              } else {
+                setMyMatches([])
+              }
             }
-          })
-
-          setUpcomingMatches(processedUpcomingMatches)
+          } else {
+            setMyMatches([])
+          }
         } else {
-          setUpcomingMatches([])
+          setMyMatches([])
         }
 
-        // Get recent matches - modified to avoid relationship issues
-        const { data: recentMatchesData, error: recentMatchesError } = await supabase
-          .from("matches")
-          .select(`*`)
-          .eq("status", "completed")
-          .order("start_time", { ascending: false })
-          .limit(10)
+        // Get upcoming matches (next 7 days)
+        await fetchUpcomingMatches(gamesMap)
 
-        if (recentMatchesError) throw recentMatchesError
+        // Get recent matches
+        await fetchRecentMatches(gamesMap)
 
-        // Process recent matches with game data
-        const processedRecentMatches =
-          recentMatchesData?.map((match) => {
-            const game = match.game_id ? gamesMap.get(match.game_id) : null
+        // Get available matches
+        await fetchAvailableMatches(gamesMap, myMatches)
 
-            return {
-              ...match,
-              game,
-            }
-          }) || []
-
-        setRecentMatches(processedRecentMatches)
-
-        // Get available matches - modified to avoid relationship issues
-        const { data: availableMatchesData, error: availableMatchesError } = await supabase
-          .from("matches")
-          .select(`*`)
-          .eq("status", "scheduled")
-          .gt("start_time", new Date().toISOString())
-          .order("start_time", { ascending: true })
-          .limit(10)
-
-        if (availableMatchesError) throw availableMatchesError
-
-        // Filter out matches the user is already part of
-        const myMatchIds = new Set(myMatches.map((m) => m.id))
-        const filteredAvailableMatches = availableMatchesData?.filter((m) => !myMatchIds.has(m.id)) || []
-
-        // Process available matches with game data
-        const processedAvailableMatches = filteredAvailableMatches.map((match) => {
-          const game = match.game_id ? gamesMap.get(match.game_id) : null
-
-          return {
-            ...match,
-            game,
-          }
-        })
-
-        setAvailableMatches(processedAvailableMatches)
-
-        // Get pending invitations - modified to avoid relationship issues
-        if (userTeamIds.length > 0) {
-          const { data: invitationsData, error: invitationsError } = await supabase
-            .from("match_invitations")
-            .select(`*`)
-            .in("team_id", userTeamIds)
-            .eq("status", "pending")
-
-          if (invitationsError) throw invitationsError
-
-          // Fetch match data for invitations
-          if (invitationsData && invitationsData.length > 0) {
-            const invitationMatchIds = invitationsData.map((inv) => inv.match_id)
-
-            const { data: invitationMatches, error: invitationMatchesError } = await supabase
-              .from("matches")
-              .select(`*`)
-              .in("id", invitationMatchIds)
-
-            if (invitationMatchesError) throw invitationMatchesError
-
-            // Create a matches lookup map
-            const matchesMap = new Map(invitationMatches?.map((match) => [match.id, match]) || [])
-
-            // Process invitations with match data
-            const processedInvitations = invitationsData.map((invitation) => {
-              const match = matchesMap.get(invitation.match_id)
-              const team = userTeams.find((t) => t.id === invitation.team_id)
-
-              return {
-                ...invitation,
-                match,
-                team,
-              }
-            })
-
-            setPendingInvitations(processedInvitations)
-          } else {
-            setPendingInvitations([])
-          }
+        // Get pending invitations
+        if (isAuthenticated && userTeamIds.length > 0) {
+          await fetchPendingInvitations(userTeamIds)
         } else {
           setPendingInvitations([])
         }
@@ -280,8 +170,190 @@ export default function MatchesOverview({ userId, userProfile, userTeams, games 
       }
     }
 
+    async function fetchPublicMatches() {
+      // Create a games lookup map for easier access
+      const gamesMap = new Map(games?.map((game) => [game.id, game]) || [])
+
+      // Fetch upcoming and recent matches for public view
+      await fetchUpcomingMatches(gamesMap)
+      await fetchRecentMatches(gamesMap)
+      await fetchAvailableMatches(gamesMap, [])
+
+      setMyMatches([])
+      setPendingInvitations([])
+    }
+
+    async function fetchUpcomingMatches(gamesMap: Map<string, any>) {
+      const nextWeek = new Date()
+      nextWeek.setDate(nextWeek.getDate() + 7)
+
+      const { data: upcomingMatchesData, error: upcomingMatchesError } = await supabase
+        .from("matches")
+        .select(`*`)
+        .eq("status", "scheduled")
+        .gte("start_time", new Date().toISOString())
+        .lte("start_time", nextWeek.toISOString())
+        .order("start_time", { ascending: true })
+        .limit(10)
+
+      if (upcomingMatchesError) {
+        console.error("Error fetching upcoming matches:", upcomingMatchesError)
+        return
+      }
+
+      // Fetch participants for upcoming matches
+      if (upcomingMatchesData && upcomingMatchesData.length > 0) {
+        const upcomingMatchIds = upcomingMatchesData.map((m) => m.id)
+
+        const { data: upcomingParticipants, error: upcomingParticipantsError } = await supabase
+          .from("match_participants")
+          .select(`
+            match_id,
+            team_id,
+            profile_id
+          `)
+          .in("match_id", upcomingMatchIds)
+
+        if (upcomingParticipantsError) {
+          console.error("Error fetching upcoming participants:", upcomingParticipantsError)
+        }
+
+        // Group participants by match
+        const participantsByMatch =
+          upcomingParticipants?.reduce(
+            (acc, p) => {
+              if (!acc[p.match_id]) acc[p.match_id] = []
+              acc[p.match_id].push(p)
+              return acc
+            },
+            {} as Record<string, any[]>,
+          ) || {}
+
+        // Process upcoming matches with game data
+        const processedUpcomingMatches = upcomingMatchesData.map((match) => {
+          const game = match.game_id ? gamesMap.get(match.game_id) : null
+          const participants = participantsByMatch[match.id] || []
+
+          return {
+            ...match,
+            game,
+            participants,
+          }
+        })
+
+        setUpcomingMatches(processedUpcomingMatches)
+      } else {
+        setUpcomingMatches([])
+      }
+    }
+
+    async function fetchRecentMatches(gamesMap: Map<string, any>) {
+      const { data: recentMatchesData, error: recentMatchesError } = await supabase
+        .from("matches")
+        .select(`*`)
+        .eq("status", "completed")
+        .order("start_time", { ascending: false })
+        .limit(10)
+
+      if (recentMatchesError) {
+        console.error("Error fetching recent matches:", recentMatchesError)
+        return
+      }
+
+      // Process recent matches with game data
+      const processedRecentMatches =
+        recentMatchesData?.map((match) => {
+          const game = match.game_id ? gamesMap.get(match.game_id) : null
+
+          return {
+            ...match,
+            game,
+          }
+        }) || []
+
+      setRecentMatches(processedRecentMatches)
+    }
+
+    async function fetchAvailableMatches(gamesMap: Map<string, any>, existingMatches: any[]) {
+      const { data: availableMatchesData, error: availableMatchesError } = await supabase
+        .from("matches")
+        .select(`*`)
+        .eq("status", "scheduled")
+        .gt("start_time", new Date().toISOString())
+        .order("start_time", { ascending: true })
+        .limit(10)
+
+      if (availableMatchesError) {
+        console.error("Error fetching available matches:", availableMatchesError)
+        return
+      }
+
+      // Filter out matches the user is already part of
+      const myMatchIds = new Set(existingMatches.map((m) => m.id))
+      const filteredAvailableMatches = availableMatchesData?.filter((m) => !myMatchIds.has(m.id)) || []
+
+      // Process available matches with game data
+      const processedAvailableMatches = filteredAvailableMatches.map((match) => {
+        const game = match.game_id ? gamesMap.get(match.game_id) : null
+
+        return {
+          ...match,
+          game,
+        }
+      })
+
+      setAvailableMatches(processedAvailableMatches)
+    }
+
+    async function fetchPendingInvitations(userTeamIds: string[]) {
+      const { data: invitationsData, error: invitationsError } = await supabase
+        .from("match_invitations")
+        .select(`*`)
+        .in("team_id", userTeamIds)
+        .eq("status", "pending")
+
+      if (invitationsError) {
+        console.error("Error fetching invitations:", invitationsError)
+        return
+      }
+
+      // Fetch match data for invitations
+      if (invitationsData && invitationsData.length > 0) {
+        const invitationMatchIds = invitationsData.map((inv) => inv.match_id)
+
+        const { data: invitationMatches, error: invitationMatchesError } = await supabase
+          .from("matches")
+          .select(`*`)
+          .in("id", invitationMatchIds)
+
+        if (invitationMatchesError) {
+          console.error("Error fetching invitation matches:", invitationMatchesError)
+          return
+        }
+
+        // Create a matches lookup map
+        const matchesMap = new Map(invitationMatches?.map((match) => [match.id, match]) || [])
+
+        // Process invitations with match data
+        const processedInvitations = invitationsData.map((invitation) => {
+          const match = matchesMap.get(invitation.match_id)
+          const team = userTeams.find((t) => t.id === invitation.team_id)
+
+          return {
+            ...invitation,
+            match,
+            team,
+          }
+        })
+
+        setPendingInvitations(processedInvitations)
+      } else {
+        setPendingInvitations([])
+      }
+    }
+
     fetchMatches()
-  }, [userId, userTeams, supabase, games])
+  }, [userId, userTeams, supabase, games, isAuthenticated])
 
   // Filter and sort matches
   const filteredMyMatches = myMatches
@@ -313,6 +385,97 @@ export default function MatchesOverview({ userId, userProfile, userTeams, games 
         return 0
       }
     })
+
+  if (!isAuthenticated) {
+    return (
+      <div className="space-y-8">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Matches</h1>
+            <p className="text-muted-foreground mt-1">Browse upcoming and recent esports matches</p>
+          </div>
+
+          <Button asChild size="lg" className="gap-2">
+            <Link href="/auth?redirect=/matches">
+              <LogIn className="h-5 w-5" />
+              Sign in to Schedule Matches
+            </Link>
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2">
+            <Tabs defaultValue="upcoming" className="w-full">
+              <TabsList className="grid grid-cols-2 mb-4">
+                <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
+                <TabsTrigger value="recent">Recent</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="upcoming" className="mt-0">
+                <UpcomingMatchesList matches={upcomingMatches} loading={loading} />
+              </TabsContent>
+
+              <TabsContent value="recent" className="mt-0">
+                <RecentMatchesList matches={recentMatches} loading={loading} />
+              </TabsContent>
+            </Tabs>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Join the Action</CardTitle>
+                <CardDescription>Sign in to participate in matches</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col items-center gap-4">
+                <p className="text-center text-muted-foreground">
+                  Create a team, join matches, and compete in tournaments by signing in to your account.
+                </p>
+                <Button asChild className="w-full">
+                  <Link href="/auth?redirect=/matches">Sign In</Link>
+                </Button>
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/auth?mode=signup&redirect=/matches">Create Account</Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Popular Games</CardTitle>
+                <CardDescription>Games with active matches</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {games.slice(0, 5).map((game) => (
+                    <div key={game.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-md bg-secondary flex items-center justify-center overflow-hidden">
+                          {game.logo_url ? (
+                            <img
+                              src={game.logo_url || "/placeholder.svg"}
+                              alt={game.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <GamepadIcon className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <p className="font-medium">{game.name}</p>
+                      </div>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link href={`/games/${game.slug}`}>View</Link>
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-8">
@@ -479,7 +642,8 @@ export default function MatchesOverview({ userId, userProfile, userTeams, games 
                   <p className="text-3xl font-bold">
                     {myMatches.filter(
                       (m) =>
-                        m.status === "completed" && m.match_results?.some((r) => r.winner_team_id === userTeams[0]?.id),
+                        m.status === "completed" &&
+                        m.match_results?.some((r) => userTeams.some((team) => team?.id === r.winner_team_id)),
                     ).length || 0}
                   </p>
                   <p className="text-sm text-muted-foreground">Wins</p>
@@ -488,7 +652,8 @@ export default function MatchesOverview({ userId, userProfile, userTeams, games 
                   <p className="text-3xl font-bold">
                     {myMatches.filter(
                       (m) =>
-                        m.status === "completed" && m.match_results?.some((r) => r.loser_team_id === userTeams[0]?.id),
+                        m.status === "completed" &&
+                        m.match_results?.some((r) => userTeams.some((team) => team?.id === r.loser_team_id)),
                     ).length || 0}
                   </p>
                   <p className="text-sm text-muted-foreground">Losses</p>
@@ -503,7 +668,7 @@ export default function MatchesOverview({ userId, userProfile, userTeams, games 
               <CardDescription>Teams you can represent in matches</CardDescription>
             </CardHeader>
             <CardContent>
-              {userTeams.length > 0 ? (
+              {userTeams && userTeams.length > 0 ? (
                 <div className="space-y-4">
                   {userTeams.map((team) => (
                     <div key={team.id} className="flex items-center justify-between">

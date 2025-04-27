@@ -1,9 +1,9 @@
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, GamepadIcon, Trophy, Users, MapPin } from "lucide-react"
-import { format } from "date-fns"
+import { Calendar, MapPin, Users, Trophy, GamepadIcon } from "lucide-react"
 import Link from "next/link"
+import { formatDistanceToNow, format } from "date-fns"
 
 interface MatchCardProps {
   match: any
@@ -11,132 +11,111 @@ interface MatchCardProps {
 }
 
 export default function MatchCard({ match, showJoinButton = false }: MatchCardProps) {
-  // Format dates
-  const startTime = match.start_time ? new Date(match.start_time) : null
-  const endTime = match.end_time ? new Date(match.end_time) : null
+  const isUpcoming = new Date(match.start_time) > new Date()
+  const statusColor =
+    {
+      scheduled: "bg-blue-500",
+      in_progress: "bg-amber-500",
+      completed: "bg-green-500",
+      cancelled: "bg-red-500",
+    }[match.status] || "bg-gray-500"
 
-  // Get participants
-  const participants = match.participants || []
-
-  // Get match format display name
-  const getMatchFormatName = (format: string) => {
-    const formats: Record<string, string> = {
-      bo1: "Best of 1",
-      bo3: "Best of 3",
-      bo5: "Best of 5",
-      bo7: "Best of 7",
+  const formatMatchTime = (date: string) => {
+    const matchDate = new Date(date)
+    if (isUpcoming) {
+      return `${formatDistanceToNow(matchDate, { addSuffix: true })} (${format(matchDate, "MMM d, h:mm a")})`
     }
-    return formats[format] || format
-  }
-
-  // Get status badge variant
-  const getStatusVariant = (status: string) => {
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-      scheduled: "secondary",
-      in_progress: "default",
-      completed: "outline",
-      cancelled: "destructive",
-    }
-    return variants[status] || "outline"
-  }
-
-  // Get status display name
-  const getStatusName = (status: string) => {
-    const names: Record<string, string> = {
-      scheduled: "Scheduled",
-      in_progress: "In Progress",
-      completed: "Completed",
-      cancelled: "Cancelled",
-    }
-    return names[status] || status
+    return format(matchDate, "MMM d, h:mm a")
   }
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="pb-2">
-        <div className="flex justify-between items-start">
+      <div className="h-2 w-full" style={{ backgroundColor: match.game?.color || "#4f46e5" }} />
+      <CardContent className="p-4">
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${statusColor}`} />
+            <span className="text-sm font-medium capitalize">{match.status.replace("_", " ")}</span>
+          </div>
+          <Badge variant={match.is_private ? "outline" : "secondary"}>{match.is_private ? "Private" : "Public"}</Badge>
+        </div>
+
+        <div className="flex items-center gap-3 mb-4">
+          {match.game?.logo_url ? (
+            <div className="h-10 w-10 rounded-md bg-secondary flex items-center justify-center overflow-hidden">
+              <img
+                src={match.game.logo_url || "/placeholder.svg"}
+                alt={match.game.name}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="h-10 w-10 rounded-md bg-secondary flex items-center justify-center">
+              <GamepadIcon className="h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
           <div>
-            <Badge className="mb-2">{match.match_type}</Badge>
-            <CardTitle className="line-clamp-1">
-              {participants.length === 2 ? (
-                <>
-                  {participants[0]?.team?.name || "Team 1"} vs {participants[1]?.team?.name || "Team 2"}
-                </>
-              ) : participants.length === 1 ? (
-                <>{participants[0]?.team?.name || "Team 1"} vs TBD</>
-              ) : (
-                "Open Match"
-              )}
-            </CardTitle>
+            <h3 className="font-semibold">{match.game?.name || "Unknown Game"}</h3>
+            <p className="text-sm text-muted-foreground">
+              {match.match_format || match.match_type || "Standard Match"}
+            </p>
           </div>
-          <Badge variant={getStatusVariant(match.status)}>{getStatusName(match.status)}</Badge>
         </div>
-      </CardHeader>
 
-      <CardContent className="pb-2">
-        <div className="space-y-3">
-          {match.game && (
-            <div className="flex items-center text-sm">
-              <GamepadIcon className="mr-2 h-4 w-4 opacity-70" />
-              <span>{match.game.name}</span>
-            </div>
-          )}
-
-          {match.match_format && (
-            <div className="flex items-center text-sm">
-              <Trophy className="mr-2 h-4 w-4 opacity-70" />
-              <span>{getMatchFormatName(match.match_format)}</span>
-            </div>
-          )}
-
-          {startTime && (
-            <div className="flex items-center text-sm">
-              <Calendar className="mr-2 h-4 w-4 opacity-70" />
-              <span>{format(startTime, "PPP")}</span>
-            </div>
-          )}
-
-          {startTime && (
-            <div className="flex items-center text-sm">
-              <Clock className="mr-2 h-4 w-4 opacity-70" />
-              <span>{format(startTime, "p")}</span>
-            </div>
-          )}
-
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center gap-2 text-sm">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <span>{formatMatchTime(match.start_time)}</span>
+          </div>
           {match.location && (
-            <div className="flex items-center text-sm">
-              <MapPin className="mr-2 h-4 w-4 opacity-70" />
-              <span className="line-clamp-1">{match.location}</span>
+            <div className="flex items-center gap-2 text-sm">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span>{match.location}</span>
             </div>
           )}
-
-          <div className="flex items-center text-sm">
-            <Users className="mr-2 h-4 w-4 opacity-70" />
-            <span>
-              {participants.length} / 2 {participants.length === 1 ? "Team" : "Teams"}
-            </span>
-          </div>
+          {match.team_size && (
+            <div className="flex items-center gap-2 text-sm">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <span>
+                {match.team_size}v{match.team_size}
+              </span>
+            </div>
+          )}
+          {match.prize_pool && (
+            <div className="flex items-center gap-2 text-sm">
+              <Trophy className="h-4 w-4 text-muted-foreground" />
+              <span>{typeof match.prize_pool === "number" ? `$${match.prize_pool}` : match.prize_pool}</span>
+            </div>
+          )}
         </div>
+
+        {match.participants && match.participants.length > 0 && (
+          <div className="mb-4">
+            <h4 className="text-sm font-medium mb-2">Participants</h4>
+            <div className="flex flex-wrap gap-2">
+              {match.participants.slice(0, 4).map((participant: any) => (
+                <Badge key={participant.team?.id || participant.profile_id} variant="secondary">
+                  {participant.team?.name || "Individual Player"}
+                </Badge>
+              ))}
+              {match.participants.length > 4 && (
+                <Badge variant="secondary">+{match.participants.length - 4} more</Badge>
+              )}
+            </div>
+          </div>
+        )}
+
+        {match.match_notes && (
+          <div className="text-sm text-muted-foreground line-clamp-2 mb-2">{match.match_notes}</div>
+        )}
       </CardContent>
-
-      {match.status === "completed" && match.match_results && match.match_results.length > 0 && (
-        <div className="px-6 py-2 bg-secondary/50">
-          <div className="flex justify-center items-center gap-2 text-sm">
-            <span className="font-semibold">{match.match_results[0].winner_score}</span>
-            <span>-</span>
-            <span className="font-semibold">{match.match_results[0].loser_score}</span>
-          </div>
-        </div>
-      )}
-
-      <CardFooter className="pt-4">
-        {showJoinButton ? (
-          <Button asChild className="w-full">
+      <CardFooter className="px-4 py-3 bg-secondary/50 flex justify-between">
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/matches/${match.id}`}>View Details</Link>
+        </Button>
+        {showJoinButton && isUpcoming && (
+          <Button asChild size="sm">
             <Link href={`/matches/${match.id}/join`}>Join Match</Link>
-          </Button>
-        ) : (
-          <Button asChild className="w-full">
-            <Link href={`/matches/${match.id}`}>View Details</Link>
           </Button>
         )}
       </CardFooter>

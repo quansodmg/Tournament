@@ -130,107 +130,65 @@ export default function EnhancedScheduleMatchForm({ userId, userTeams }: Enhance
       setLoading(true)
       setError(null)
 
-      // First, let's get the structure of the matches table to see what columns exist
-      const { data: tableInfo, error: tableError } = await supabase.rpc("exec_sql", {
-        sql_string: "SELECT column_name FROM information_schema.columns WHERE table_name = 'matches'",
-      })
-
-      if (tableError) throw tableError
-
-      // Convert the result to a simple array of column names
-      const columns = Array.isArray(tableInfo) ? tableInfo.map((col: any) => col.column_name) : []
-      console.log("Available columns in matches table:", columns)
-
-      // Create match data object with only columns that exist in the table
+      // Create match data object with minimal required fields
       const startDateTime = new Date(`${startDate}T${startTime}`)
       const endDateTime = new Date(startDateTime.getTime() + 3600000) // Default 1 hour match duration
 
-      const matchData: Record<string, any> = {}
-
-      // Only add fields that exist in the database
-      if (columns.includes("scheduled_by")) matchData.scheduled_by = userId
-      if (columns.includes("start_time")) matchData.start_time = startDateTime.toISOString()
-      if (columns.includes("end_time")) matchData.end_time = endDateTime.toISOString()
-      if (columns.includes("status")) matchData.status = "pending"
-      if (columns.includes("match_notes")) matchData.match_notes = matchNotes
-      if (columns.includes("is_private")) matchData.is_private = isPrivate
-      if (columns.includes("match_type")) matchData.match_type = matchType
-      if (columns.includes("game_mode")) matchData.game_mode = gameMode
-      if (columns.includes("match_format")) matchData.match_format = matchType
-      if (columns.includes("team_size")) {
-        const selectedRuleset = availableRulesets.find((r) => r.id === ruleset)
-        matchData.team_size = selectedRuleset?.teamSize || 4
+      const matchData = {
+        start_time: startDateTime.toISOString(),
+        end_time: endDateTime.toISOString(),
+        is_private: isPrivate,
       }
-      if (columns.includes("game_id")) matchData.game_id = selectedGame
 
-      console.log("Creating match with data:", matchData)
-
-      // Create the match
-      const { data: match, error: matchError } = await supabase.from("matches").insert(matchData).select().single()
-
-      if (matchError) throw matchError
-
-      console.log("Match created:", match)
-
-      // Create match settings
+      // Get the selected ruleset
       const selectedRuleset = availableRulesets.find((r) => r.id === ruleset)
       const teamSize = selectedRuleset?.teamSize || 4
 
-      try {
-        const { error: settingsError } = await supabase.from("match_settings").insert({
-          match_id: match.id,
-          settings: {
-            gameMode: gameMode,
-            teamSize: teamSize,
-            scoreLimit: selectedRuleset?.rules?.scoreLimit,
-            timeLimit: selectedRuleset?.rules?.timeLimit,
-            roundsToWin: selectedRuleset?.rules?.roundsToWin,
-            customRules: selectedRuleset?.rules?.customRules,
-            gameId: selectedGame, // Store game ID here as a fallback
-          },
-        })
-
-        if (settingsError) {
-          console.error("Error creating match settings:", settingsError)
-        }
-      } catch (settingsErr) {
-        console.error("Match settings table might not exist:", settingsErr)
+      // Create match settings object
+      const matchSettings = {
+        ruleset_id: ruleset,
+        settings: {
+          gameMode: gameMode,
+          teamSize: teamSize,
+          matchType: matchType,
+          isPrivate: isPrivate,
+          scoreLimit: selectedRuleset?.rules?.scoreLimit,
+          timeLimit: selectedRuleset?.rules?.timeLimit,
+          roundsToWin: selectedRuleset?.rules?.roundsToWin,
+          customRules: selectedRuleset?.rules?.customRules,
+          notes: matchNotes,
+        },
+        rules: {
+          gameName: games.find((g) => g.id === selectedGame)?.name || "Unknown Game",
+        },
       }
 
-      // Add user's team as participant
-      try {
-        const { error: participantError } = await supabase.from("match_participants").insert({
-          match_id: match.id,
-          team_id: selectedTeam,
-        })
+      // Use the server-side API to create the match
+      const response = await fetch("/api/matches/create", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          matchData,
+          teamId: selectedTeam,
+          gameId: selectedGame,
+          matchSettings,
+          isWager,
+          wagerAmount,
+        }),
+      })
 
-        if (participantError) {
-          console.error("Error adding team as participant:", participantError)
-        }
-      } catch (participantErr) {
-        console.error("Match participants table might not exist:", participantErr)
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to create match")
       }
 
-      // Create wager if selected
-      if (isWager && wagerAmount > 0) {
-        try {
-          const { error: wagerError } = await supabase.from("match_wagers").insert({
-            match_id: match.id,
-            amount: wagerAmount,
-            platform_fee: wagerAmount * 0.1, // 10% platform fee
-            status: "pending",
-          })
-
-          if (wagerError) {
-            console.error("Error creating wager:", wagerError)
-          }
-        } catch (wagerErr) {
-          console.error("Match wagers table might not exist:", wagerErr)
-        }
-      }
+      console.log("Match created:", result.match)
 
       // Redirect to match page
-      router.push(`/matches/${match.id}`)
+      router.push(`/matches/${result.match.id}`)
     } catch (err: any) {
       console.error("Error creating match:", err)
       setError(err.message || "Failed to create match")

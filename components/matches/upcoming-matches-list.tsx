@@ -22,7 +22,7 @@ export default function UpcomingMatchesList({ matches, loading }: UpcomingMatche
         <CardContent className="flex flex-col items-center justify-center py-12">
           <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-xl font-semibold mb-2">No Upcoming Matches</h3>
-          <p className="text-muted-foreground text-center">There are no matches scheduled for the next 7 days.</p>
+          <p className="text-muted-foreground text-center">There are no upcoming matches scheduled at the moment.</p>
         </CardContent>
       </Card>
     )
@@ -31,7 +31,7 @@ export default function UpcomingMatchesList({ matches, loading }: UpcomingMatche
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {matches.map((match) => (
-        <MatchCard key={match.id} match={match} />
+        <MatchCard key={match.id} match={match} showJoinButton />
       ))}
     </div>
   )

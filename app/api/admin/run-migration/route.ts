@@ -14,7 +14,10 @@ export async function GET(request: Request) {
     }
 
     // Security check - only allow specific migration files
-    const allowedMigrations = ["create_cron_job_logs_table.sql"]
+    const allowedMigrations = [
+      "create_cron_job_logs_table.sql",
+      "ensure_game_id_in_matches.sql", // Added our new migration file
+    ]
     if (!allowedMigrations.includes(migrationFile)) {
       return NextResponse.json({ error: "Invalid migration file" }, { status: 400 })
     }

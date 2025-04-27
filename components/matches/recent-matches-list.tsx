@@ -22,7 +22,7 @@ export default function RecentMatchesList({ matches, loading }: RecentMatchesLis
         <CardContent className="flex flex-col items-center justify-center py-12">
           <History className="h-12 w-12 text-muted-foreground mb-4" />
           <h3 className="text-xl font-semibold mb-2">No Recent Matches</h3>
-          <p className="text-muted-foreground text-center">There are no completed matches to display.</p>
+          <p className="text-muted-foreground text-center">There are no recently completed matches to display.</p>
         </CardContent>
       </Card>
     )

@@ -13,7 +13,15 @@ export default function MatchDetailError({
   error: Error & { digest?: string }
   reset?: () => void
 }) {
+  // Update the useEffect to properly handle redirect errors
   useEffect(() => {
+    // Check if it's a redirect error
+    if (error.message?.includes("NEXT_REDIRECT") || error.message === "Redirect") {
+      // For redirects, navigate to the matches page
+      window.location.href = "/matches"
+      return
+    }
+
     console.error("Match detail error:", error)
   }, [error])
 

@@ -11,38 +11,30 @@ export default function MatchesError({
   reset,
 }: {
   error: Error & { digest?: string }
-  reset?: () => void
+  reset: () => void
 }) {
   useEffect(() => {
+    // Log the error to an error reporting service
     console.error("Matches error:", error)
   }, [error])
 
-  const handleReset = () => {
-    if (typeof reset === "function") {
-      reset()
-    } else {
-      // Fallback if reset is not available
-      window.location.reload()
-    }
-  }
-
   return (
-    <div className="container max-w-screen-md mx-auto py-16 px-4">
-      <Card className="border-red-200 bg-red-50">
+    <div className="container max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <Card className="border-destructive">
         <CardHeader>
           <div className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-red-600" />
-            <CardTitle className="text-red-600">Error Loading Matches</CardTitle>
+            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <CardTitle>Something went wrong</CardTitle>
           </div>
-          <CardDescription>We encountered an issue while loading the matches page.</CardDescription>
+          <CardDescription>An error occurred while loading the matches page</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-white p-4 rounded-md border border-red-100 text-sm overflow-auto max-h-32 text-black">
-            {error.message || "An unknown error occurred"}
+          <div className="bg-muted p-4 rounded-md text-sm overflow-auto max-h-32">
+            {error.message || "Unknown error"}
           </div>
         </CardContent>
         <CardFooter className="flex gap-4">
-          <Button onClick={handleReset} variant="default">
+          <Button onClick={() => reset()} variant="default">
             Try again
           </Button>
           <Button asChild variant="outline">

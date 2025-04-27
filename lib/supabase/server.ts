@@ -3,30 +3,16 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
 import type { Database } from "@/lib/database.types"
 import { cookies } from "next/headers"
 
+/**
+ * Creates a Supabase client for server components
+ * @returns A Supabase client instance
+ */
 export function createServerClient() {
   try {
     const cookieStore = cookies()
-    return createServerComponentClient<Database>({ cookies: () => cookieStore })
-  } catch (error) {
-    console.error("Error creating server client:", error)
-    throw new Error("Failed to initialize database connection")
-  }
-}
-
-/**
- * Creates a Supabase client for server components
- * @returns Promise resolving to a Supabase client instance
- */
-export const createServerSupabase = async () => {
-  try {
-    // Dynamically import cookies to prevent bundling with client code
-    // const { cookies } = await import("next/headers")
-
-    // Pass the cookies function directly, not the result of calling it
-    const client = createServerComponentClient<Database>({
-      cookies,
+    return createServerComponentClient<Database>({
+      cookies: () => cookieStore,
       options: {
-        // Add retries for transient network issues
         global: {
           fetch: (url, options) => {
             return fetch(url, {
@@ -38,20 +24,18 @@ export const createServerSupabase = async () => {
         },
       },
     })
-
-    // Verify that the client has the expected methods
-    if (!client || typeof client.from !== "function") {
-      throw new Error("Invalid Supabase client created")
-    }
-
-    return client
   } catch (error) {
-    console.error("Error creating server Supabase client:", error)
-    throw error
+    console.error("Error creating server client:", error)
+    throw new Error("Failed to initialize database connection")
   }
 }
 
+/**
+ * Legacy alias for createServerClient
+ * @deprecated Use createServerClient instead
+ */
+export const createServerSupabase = createServerClient
+
 // Export with multiple names for backward compatibility
-export { createServerSupabase as getSupabaseServer }
-// export { createServerSupabase as createServerClient }
-export { createServerSupabase as createClient }
+export { createServerClient as getSupabaseServer }
+export { createServerClient as createClient }

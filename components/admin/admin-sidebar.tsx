@@ -11,9 +11,10 @@ import {
   BarChart3,
   Settings,
   Swords,
-  AlertTriangle,
+  AlertCircle,
   UserCog,
   Home,
+  Clock,
 } from "lucide-react"
 
 export default function AdminSidebar() {
@@ -59,7 +60,7 @@ export default function AdminSidebar() {
     {
       name: "Disputes",
       href: "/admin/disputes",
-      icon: AlertTriangle,
+      icon: AlertCircle,
       permission: "disputes:read",
     },
     {
@@ -73,6 +74,12 @@ export default function AdminSidebar() {
       href: "/admin/roles",
       icon: UserCog,
       permission: "roles:read",
+    },
+    {
+      name: "Cron Jobs",
+      href: "/admin/cron",
+      icon: Clock,
+      permission: "settings:read",
     },
     {
       name: "Settings",

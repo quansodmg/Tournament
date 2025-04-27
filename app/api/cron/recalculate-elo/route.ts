@@ -2,17 +2,41 @@ import { NextResponse } from "next/server"
 import { createServerClient } from "@/lib/supabase/server"
 import { EloService } from "@/lib/services/elo-service"
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
+  // Create a log entry for this execution
+  const supabase = await createServerClient()
+  const { data: logEntry, error: logError } = await supabase
+    .from("cron_job_logs")
+    .insert({
+      job_name: "recalculate-elo",
+      status: "running",
+      started_at: new Date().toISOString(),
+    })
+    .select()
+    .single()
+
+  const logId = logEntry?.id
+
   try {
-    // Verify the request is authorized using CRON_SECRET only
+    // Verify the request is authorized
     const authHeader = request.headers.get("authorization")
     if (!authHeader || authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+      // Update log with error
+      if (logId) {
+        await supabase
+          .from("cron_job_logs")
+          .update({
+            status: "failed",
+            completed_at: new Date().toISOString(),
+            error: "Unauthorized request",
+          })
+          .eq("id", logId)
+      }
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const supabase = await createServerClient()
-
     // Get completed matches that might need ELO recalculation
+    const startTime = Date.now()
     const { data: matches, error } = await supabase
       .from("matches")
       .select("id")
@@ -26,6 +50,20 @@ export async function GET(request: Request) {
     }
 
     if (!matches || matches.length === 0) {
+      // Update log with completion info
+      if (logId) {
+        const endTime = Date.now()
+        await supabase
+          .from("cron_job_logs")
+          .update({
+            status: "completed",
+            completed_at: new Date().toISOString(),
+            duration_ms: endTime - startTime,
+            items_processed: 0,
+            details: { message: "No matches to process" },
+          })
+          .eq("id", logId)
+      }
       return NextResponse.json({ message: "No matches to process" })
     }
 
@@ -37,15 +75,40 @@ export async function GET(request: Request) {
       results.push({ matchId: match.id, success })
     }
 
+    // Update log with completion info
+    if (logId) {
+      const endTime = Date.now()
+      await supabase
+        .from("cron_job_logs")
+        .update({
+          status: "completed",
+          completed_at: new Date().toISOString(),
+          duration_ms: endTime - startTime,
+          items_processed: matches.length,
+          details: { results },
+        })
+        .eq("id", logId)
+    }
+
     return NextResponse.json({
       message: `Processed ${matches.length} matches`,
       results,
     })
   } catch (error) {
     console.error("Error in ELO recalculation cron:", error)
+
+    // Update log with error info
+    if (logId) {
+      await supabase
+        .from("cron_job_logs")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          error: error instanceof Error ? error.message : String(error),
+        })
+        .eq("id", logId)
+    }
+
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
-
-// Also support POST requests for manual triggering
-export { GET as POST }
